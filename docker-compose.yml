@@ -1,0 +1,41 @@
+services:
+  api:
+    container_name: html_for_pdf-api
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+      args:
+        PORT: ${PORT}
+        RABBITMQ_URL: ${RABBITMQ_URL}
+    ports:
+      - '${PORT:-3000}:3000'
+    env_file:
+      - .env
+    environment:
+      - PORT=${PORT}
+    restart: unless-stopped
+    networks:
+      - html_for_pdf_net
+
+  worker:
+    container_name: html_for_pdf-worker
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+      args:
+        RABBITMQ_URL: ${RABBITMQ_URL}
+    env_file:
+      - .env
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY}
+      - PDF_QUEUE_NAME=${PDF_QUEUE_NAME}
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks:
+      - html_for_pdf_net
+
+networks:
+  html_for_pdf_net:
+    driver: bridge
