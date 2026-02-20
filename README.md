@@ -203,4 +203,4 @@ app.post('/webhook/pdf', upload.single('file'), (req, res) => {
 
 ## License
 
-ISC — [Edvaldo Lima](https://github.com/devlima)
+ISC — [Edvaldo Lima](https://github.com/EdvaldoLima)
