@@ -5,6 +5,7 @@ import pdfService from '../services/pdfService.js';
 import webhookService from '../services/webhookService.js';
 import { sendConfirmed } from '../services/queueService.js';
 import logger from '../utils/logger.js';
+import { PublicError } from '../utils/errors.js';
 
 export async function processJob(channel: ConfirmChannel, message: ConsumeMessage) {
   let job;
@@ -20,6 +21,7 @@ export async function processJob(channel: ConfirmChannel, message: ConsumeMessag
   }
 
   let failed = false;
+  let permanentFailure = false;
 
   try {
     const buffer = await pdfService.generatePdfFromUrl(job.url, job.options);
@@ -29,6 +31,7 @@ export async function processJob(channel: ConfirmChannel, message: ConsumeMessag
     }
   } catch (error) {
     failed = true;
+    permanentFailure = error instanceof PublicError && error.status === 422;
     logger.error('Job processing failed', { jobId: job.jobId, error });
   }
 
@@ -41,7 +44,7 @@ export async function processJob(channel: ConfirmChannel, message: ConsumeMessag
   const value = message.properties.headers?.['x-attempt'];
   const attempt = Number.isSafeInteger(value) && value >= 0 ? Number(value) : 0;
 
-  if (attempt >= config.maxAttempts - 1) {
+  if (permanentFailure || attempt >= config.maxAttempts - 1) {
     channel.nack(message, false, false);
 
     return;

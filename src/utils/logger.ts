@@ -9,8 +9,18 @@ const secretKey = /authorization|cookie|password|secret|token|api.?key|url|body|
 export function sanitize(value: unknown, depth = 0): unknown {
   if (typeof value === 'bigint') return value.toString();
   if (depth > 5) return '[truncated]';
+
   // Exception messages can contain credentials and source URLs.
-  if (value instanceof Error) return { name: value.name };
+  if (value instanceof Error) {
+    const { code, status } = value as Error & { code?: unknown; status?: unknown };
+
+    return {
+      name: value.name,
+      ...(typeof code === 'string' && /^[A-Z0-9_]{1,50}$/.test(code) ? { code } : {}),
+      ...(typeof status === 'number' && Number.isInteger(status) ? { status } : {}),
+    };
+  }
+
   if (typeof value === 'string')
     return value
       .slice(0, 1000)

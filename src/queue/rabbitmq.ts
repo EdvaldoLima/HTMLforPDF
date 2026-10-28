@@ -29,6 +29,7 @@ export function getConnection(): Promise<amqp.ChannelModel> {
 export async function createChannel() {
   const channel = await (await getConnection()).createConfirmChannel();
 
+  channel.setMaxListeners(Math.max(10, config.concurrency * 2 + 10));
   channel.on('error', () => logger.error('RabbitMQ channel error'));
 
   return channel;

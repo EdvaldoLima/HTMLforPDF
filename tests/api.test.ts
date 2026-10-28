@@ -51,3 +51,20 @@ it('rejects malformed JSON without returning internals', async () => {
 it('provides liveness', async () => {
   expect((await fetch(`${base}/health/live`)).status).toBe(200);
 });
+
+it('rejects an undersized configured API key', async () => {
+  const previous = config.apiKey;
+
+  config.apiKey = 'short-key';
+
+  try {
+    const response = await fetch(`${base}/api/pdfs`, {
+      method: 'POST',
+      headers: { 'X-API-Key': config.apiKey },
+    });
+
+    expect(response.status).toBe(503);
+  } finally {
+    config.apiKey = previous;
+  }
+});
