@@ -1,40 +1,51 @@
+x-runtime: &runtime
+  init: true
+  restart: unless-stopped
+  env_file:
+    - ${ENV_FILE:-.env}
+  read_only: true
+  tmpfs:
+    - /tmp:size=512m,mode=1777
+  shm_size: 256mb
+  mem_limit: 1g
+  cpus: 2
+  pids_limit: 256
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+    - seccomp=./docker/chromium-seccomp.json
+  stop_grace_period: 90s
+  networks:
+    - html_for_pdf_net
+
 services:
   api:
-    container_name: html_for_pdf-api
+    <<: *runtime
     build:
       context: .
       dockerfile: docker/api/Dockerfile
-      args:
-        PORT: ${PORT}
-        RABBITMQ_URL: ${RABBITMQ_URL}
     ports:
       - '${PORT:-3000}:3000'
-    env_file:
-      - .env
     environment:
-      - PORT=${PORT}
-    restart: unless-stopped
-    networks:
-      - html_for_pdf_net
+      PORT: 3000
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   worker:
-    container_name: html_for_pdf-worker
+    <<: *runtime
     build:
       context: .
       dockerfile: docker/worker/Dockerfile
-      args:
-        RABBITMQ_URL: ${RABBITMQ_URL}
-    env_file:
-      - .env
-    environment:
-      - RABBITMQ_URL=${RABBITMQ_URL}
-      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY}
-      - PDF_QUEUE_NAME=${PDF_QUEUE_NAME}
-    restart: unless-stopped
-    depends_on:
-      - api
-    networks:
-      - html_for_pdf_net
 
 networks:
   html_for_pdf_net:
