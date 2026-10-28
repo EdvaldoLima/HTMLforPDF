@@ -8,6 +8,7 @@ export async function assertTopology(channel: ConfirmChannel) {
     durable: true,
     arguments: { 'x-max-length': config.queueLimit, 'x-overflow': 'reject-publish' },
   });
+
   await channel.assertQueue(config.queue, {
     durable: true,
     arguments: {
@@ -17,6 +18,7 @@ export async function assertTopology(channel: ConfirmChannel) {
       'x-dead-letter-routing-key': `${config.queue}.dead`,
     },
   });
+
   await channel.assertQueue(`${config.queue}.retry`, {
     durable: true,
     arguments: {
@@ -37,7 +39,9 @@ export function sendConfirmed(
 ) {
   return new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Publisher confirmation timed out')), 10_000);
+
     timer.unref();
+
     try {
       channel.sendToQueue(queue, body, { ...properties, persistent: true }, (error) => {
         clearTimeout(timer);
@@ -53,8 +57,10 @@ export function sendConfirmed(
 
 export async function publishJob(payload: JobPayload) {
   const channel = await createChannel();
+
   try {
     await assertTopology(channel);
+
     await sendConfirmed(channel, config.queue, Buffer.from(JSON.stringify(payload)), {
       messageId: payload.jobId,
       contentType: 'application/json',

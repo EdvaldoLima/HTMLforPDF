@@ -14,11 +14,13 @@ export function isPublicAddress(address: string): boolean {
 
 export function parsePublicUrl(value: string): URL {
   let url: URL;
+
   try {
     url = new URL(value);
   } catch {
     throw new PublicError(422, 'Invalid URL');
   }
+
   if (
     !['http:', 'https:'].includes(url.protocol) ||
     url.username ||
@@ -30,15 +32,19 @@ export function parsePublicUrl(value: string): URL {
       'Only HTTP/HTTPS URLs on ports 80/443 without credentials are allowed',
     );
   }
+
   const host = url.hostname.replace(/^\[|\]$/g, '');
+
   if (ipaddr.isValid(host) && !isPublicAddress(host)) {
     throw new PublicError(422, 'Destination is not allowed');
   }
+
   return url;
 }
 
 async function lookupBounded(host: string) {
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   try {
     return await Promise.race([
       lookup(host, { all: true }),
@@ -58,9 +64,11 @@ export async function resolvePublicUrl(value: string) {
   const url = parsePublicUrl(value);
   const host = url.hostname.replace(/^\[|\]$/g, '');
   const records = await lookupBounded(host);
+
   if (!records.length || records.some(({ address }) => !isPublicAddress(address))) {
     throw new PublicError(422, 'Destination is not allowed');
   }
+
   return { url, address: records[0].address, family: records[0].family };
 }
 
@@ -71,6 +79,7 @@ export function publicDispatcher(): Agent {
       timeout: 10_000,
       lookup(hostname, options, callback) {
         const host = hostname.replace(/^\[|\]$/g, '');
+
         lookupBounded(host)
           .then((records) => {
             if (!records.length || records.some(({ address }) => !isPublicAddress(address))) {

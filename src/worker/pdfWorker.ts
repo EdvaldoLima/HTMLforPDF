@@ -20,24 +20,33 @@ async function run() {
   while (!stopping) {
     try {
       const channel = await createChannel();
+
       current = channel;
+
       const closed = new Promise<void>((resolve) => channel.once('close', resolve));
+
       await assertTopology(channel);
       await channel.prefetch(config.concurrency);
+
       const consumer = await channel.consume(config.queue, (message) => {
         if (!message) {
           void channel.close().catch(() => undefined);
+
           return;
         }
+
         const task = processJob(channel, message).catch(async (error) => {
           logger.error('Consumer channel failed; unacknowledged jobs will be redelivered', {
             error,
           });
+
           await channel.close().catch(() => undefined);
         });
+
         inflight.add(task);
         void task.finally(() => inflight.delete(task));
       });
+
       consumerTag = consumer.consumerTag;
       logger.info('Worker ready');
       await closed;
@@ -48,6 +57,7 @@ async function run() {
       current = undefined;
       consumerTag = undefined;
     }
+
     if (!stopping)
       await new Promise<void>((resolve) => {
         reconnectTimer = setTimeout(resolve, 3000);
@@ -59,11 +69,14 @@ async function stop() {
   if (stopping) return;
   stopping = true;
   clearTimeout(reconnectTimer);
+
   const deadline = setTimeout(
     () => process.exit(1),
     config.renderTimeout + config.webhookTimeout + 15_000,
   );
+
   deadline.unref();
+
   try {
     if (current && consumerTag) await current.cancel(consumerTag).catch(() => undefined);
     await Promise.allSettled([...inflight]);
@@ -74,10 +87,13 @@ async function stop() {
     process.exit(0);
   }
 }
+
 process.once('SIGTERM', () => {
   void stop();
 });
+
 process.once('SIGINT', () => {
   void stop();
 });
+
 void run();

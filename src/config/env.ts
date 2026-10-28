@@ -2,9 +2,11 @@ import 'dotenv/config';
 
 export function integer(name: string, fallback: number, max = 1_000_000): number {
   const value = Number(process.env[name] ?? fallback);
+
   if (!Number.isSafeInteger(value) || value < 1 || value > max) {
     throw new Error(`Invalid configuration: ${name}`);
   }
+
   return value;
 }
 

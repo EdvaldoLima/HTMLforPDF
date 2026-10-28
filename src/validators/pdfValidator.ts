@@ -2,8 +2,10 @@ import vine from '@vinejs/vine';
 
 const sizeRule = vine.createRule((value: unknown, options: { allowZero: boolean }, field) => {
   if (typeof value !== 'string') return;
+
   const match = /^(\d+(?:\.\d{1,2})?)(px|in|cm|mm)$/.exec(value);
   const units: Record<string, number> = { px: 1, in: 96, cm: 96 / 2.54, mm: 96 / 25.4 };
+
   if (
     !match ||
     (!options.allowZero && Number(match[1]) === 0) ||
