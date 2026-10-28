@@ -1,13 +1,28 @@
 import { createServer, request } from 'node:http';
 import { connect, type Socket } from 'node:net';
 import { resolvePublicUrl } from './network.js';
+import { PublicError } from '../utils/errors.js';
 
 // A per-render forward proxy pins connections to validated public IPs, including
 // CONNECT tunnels. Redirects and subresources pass through the same policy.
-export async function createBrowserProxy(maxBytes: number) {
+export async function createBrowserProxy(maxBytes: number, maxRequests = 500) {
   const sockets = new Set<Socket>();
   let bytes = 0;
   let closed = false;
+  let requests = 0;
+  let exceeded = false;
+
+  const exhaust = () => {
+    exceeded = true;
+    for (const socket of sockets) socket.destroy();
+  };
+
+  const acceptRequest = () => {
+    requests++;
+    if (requests > maxRequests) exhaust();
+
+    return !closed && !exceeded;
+  };
 
   const track = (socket: Socket) => {
     sockets.add(socket);
@@ -20,7 +35,7 @@ export async function createBrowserProxy(maxBytes: number) {
     bytes += size;
 
     if (bytes > maxBytes) {
-      for (const socket of sockets) socket.destroy();
+      exhaust();
 
       return false;
     }
@@ -29,6 +44,12 @@ export async function createBrowserProxy(maxBytes: number) {
   };
 
   const server = createServer((req, res) => {
+    if (!acceptRequest()) {
+      req.destroy();
+
+      return;
+    }
+
     void (async () => {
       const { url, address, family } = await resolvePublicUrl(req.url ?? '');
 
@@ -70,15 +91,31 @@ export async function createBrowserProxy(maxBytes: number) {
       req.on('aborted', () => upstream.destroy());
       res.on('close', () => upstream.destroy());
       req.pipe(upstream);
-    })().catch(() => {
-      if (!res.headersSent) res.writeHead(403);
+    })().catch((error: unknown) => {
+      if (!res.headersSent)
+        res.writeHead(error instanceof PublicError && error.status === 503 ? 503 : 403);
       res.end();
     });
   });
 
-  server.on('connection', track);
+  server.maxConnections = 64;
+  server.on('drop', exhaust);
+
+  server.on('connection', (socket) => {
+    track(socket);
+
+    socket.on('data', (chunk: Buffer) => {
+      budget(chunk.length);
+    });
+  });
 
   server.on('connect', (req, client, head) => {
+    if (!acceptRequest()) {
+      client.destroy();
+
+      return;
+    }
+
     void (async () => {
       const { url, address, family } = await resolvePublicUrl(`https://${req.url}`);
 
@@ -116,6 +153,7 @@ export async function createBrowserProxy(maxBytes: number) {
 
   return {
     url: `http://127.0.0.1:${address.port}`,
+    hasExceededBudget: () => exceeded,
     close: async () => {
       closed = true;
       for (const socket of sockets) socket.destroy();

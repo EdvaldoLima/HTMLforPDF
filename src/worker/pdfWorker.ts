@@ -54,6 +54,8 @@ async function run() {
       logger.error('Worker connection failed', { error });
     } finally {
       await current?.close().catch(() => undefined);
+      // Do not start a new consumer while jobs from the closed channel still render.
+      await Promise.allSettled([...inflight]);
       current = undefined;
       consumerTag = undefined;
     }

@@ -4,6 +4,7 @@ import { config } from '../config/env.js';
 import { resolvePublicUrl, parsePublicUrl } from '../security/network.js';
 import { createBrowserProxy } from '../security/browserProxy.js';
 import { PublicError } from '../utils/errors.js';
+import { buildPdfOptions } from '../utils/pdfOptions.js';
 
 let active = 0;
 const browsers = new Set<Browser>();
@@ -19,6 +20,9 @@ async function generatePdfFromUrl(url: string, options?: PdfOptions): Promise<Bu
   let browser: Browser | undefined;
   let proxy: Awaited<ReturnType<typeof createBrowserProxy>> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let resourceRequests = 0;
+  let requestLimitExceeded = false;
+  const networkLimitExceeded = () => requestLimitExceeded || Boolean(proxy?.hasExceededBudget());
   const deadline = Date.now() + config.renderTimeout;
 
   try {
@@ -34,7 +38,7 @@ async function generatePdfFromUrl(url: string, options?: PdfOptions): Promise<Bu
     ]);
 
     clearTimeout(timer);
-    proxy = await createBrowserProxy(config.maxNetworkBytes);
+    proxy = await createBrowserProxy(config.maxNetworkBytes, config.maxNetworkRequests);
 
     browser = await chromium.launch({
       headless: true,
@@ -55,6 +59,14 @@ async function generatePdfFromUrl(url: string, options?: PdfOptions): Promise<Bu
       });
 
       await context.route('**/*', (route) => {
+        resourceRequests++;
+
+        if (resourceRequests > config.maxNetworkRequests) {
+          requestLimitExceeded = true;
+
+          return route.abort('blockedbyclient');
+        }
+
         try {
           parsePublicUrl(route.request().url());
 
@@ -72,10 +84,25 @@ async function generatePdfFromUrl(url: string, options?: PdfOptions): Promise<Bu
 
       const response = await page.goto(url, { waitUntil: 'load' });
 
-      if (!response || !response.ok()) throw new PublicError(422, 'Source page returned an error');
+      if (!response || !response.ok()) {
+        if (response && (response.status() >= 500 || [408, 429].includes(response.status()))) {
+          throw new PublicError(503, 'Source page is temporarily unavailable');
+        }
 
-      const buffer = await page.pdf({ format: 'A4', printBackground: true, ...options });
+        throw new PublicError(422, 'Source page returned an error');
+      }
 
+      if (networkLimitExceeded()) throw new PublicError(422, 'Page exceeds network limits');
+
+      const buffer = await page.pdf(buildPdfOptions(options)).catch((error: unknown) => {
+        if (error instanceof Error && error.message.includes('Page range exceeds page count')) {
+          throw new PublicError(422, 'Requested page range exceeds the document page count');
+        }
+
+        throw error;
+      });
+
+      if (networkLimitExceeded()) throw new PublicError(422, 'Page exceeds network limits');
       if (buffer.length > config.maxPdfBytes) throw new PublicError(422, 'PDF exceeds size limit');
 
       return buffer;
@@ -90,6 +117,14 @@ async function generatePdfFromUrl(url: string, options?: PdfOptions): Promise<Bu
         );
       }),
     ]);
+  } catch (error) {
+    if (networkLimitExceeded()) throw new PublicError(422, 'Page exceeds network limits');
+
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw new PublicError(504, 'Rendering timed out');
+    }
+
+    throw error;
   } finally {
     clearTimeout(timer);
 

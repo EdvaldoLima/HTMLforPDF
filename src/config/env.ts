@@ -21,6 +21,7 @@ export const config = {
   webhookTimeout: integer('WEBHOOK_TIMEOUT_MS', 15_000, 120_000),
   maxPdfBytes: integer('MAX_PDF_BYTES', 20 * 1024 * 1024, 100 * 1024 * 1024),
   maxNetworkBytes: integer('MAX_NETWORK_BYTES', 50 * 1024 * 1024, 200 * 1024 * 1024),
+  maxNetworkRequests: integer('MAX_NETWORK_REQUESTS', 500, 5000),
   maxAttempts: integer('JOB_MAX_ATTEMPTS', 3, 10),
   queueLimit: integer('QUEUE_MAX_LENGTH', 10_000),
   rateLimit: integer('RATE_LIMIT_PER_MINUTE', 30, 10_000),

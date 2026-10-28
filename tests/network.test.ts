@@ -122,3 +122,14 @@ describe('destination policy', () => {
     }
   });
 });
+
+it.each([
+  ['ENOTFOUND', 422],
+  ['ENODATA', 422],
+  ['EAI_AGAIN', 503],
+  ['ETIMEDOUT', 503],
+])('classifies DNS error %s with status %s', async (code, status) => {
+  vi.mocked(lookup).mockRejectedValueOnce(Object.assign(new Error('DNS lookup failed'), { code }));
+
+  await expect(resolvePublicUrl('https://example.com')).rejects.toMatchObject({ status });
+});

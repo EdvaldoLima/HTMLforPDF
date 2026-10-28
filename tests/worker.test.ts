@@ -78,7 +78,24 @@ it.each([null, {}, { url: 'https://example.com' }])('dead-letters invalid job %s
   expect(pdfService.generatePdfFromUrl).not.toHaveBeenCalled();
 });
 
-it('removes unknown PDF options, including filesystem paths', async () => {
+it('dead-letters unknown PDF options, including filesystem paths', async () => {
   await processJob(channel, message({ ...job, options: { path: '/tmp/evil', landscape: true } }));
-  expect(pdfService.generatePdfFromUrl).toHaveBeenCalledWith(job.url, { landscape: true });
+  expect(pdfService.generatePdfFromUrl).not.toHaveBeenCalled();
+  expect(channel.nack).toHaveBeenCalledOnce();
+  expect(channel.ack).not.toHaveBeenCalled();
+});
+
+it('dead-letters permanent rendering errors without spending retries', async () => {
+  const { PublicError } = await import('../src/utils/errors.js');
+
+  vi.mocked(pdfService.generatePdfFromUrl).mockRejectedValue(
+    new PublicError(422, 'Page exceeds network limits'),
+  );
+
+  const msg = message();
+
+  await processJob(channel, msg);
+  expect(channel.nack).toHaveBeenCalledExactlyOnceWith(msg, false, false);
+  expect(channel.ack).not.toHaveBeenCalled();
+  expect(sendConfirmed).not.toHaveBeenCalled();
 });

@@ -50,11 +50,21 @@ async function lookupBounded(host: string) {
       lookup(host, { all: true }),
       new Promise<never>((_, reject) => {
         timer = setTimeout(
-          () => reject(new PublicError(422, 'Destination resolution timed out')),
+          () => reject(new PublicError(503, 'Destination resolution timed out')),
           5000,
         );
       }),
     ]);
+  } catch (error) {
+    if (error instanceof PublicError) throw error;
+
+    const code = (error as NodeJS.ErrnoException)?.code;
+
+    if (code === 'ENOTFOUND' || code === 'ENODATA') {
+      throw new PublicError(422, 'Destination could not be resolved');
+    }
+
+    throw new PublicError(503, 'DNS resolution is temporarily unavailable');
   } finally {
     clearTimeout(timer);
   }
