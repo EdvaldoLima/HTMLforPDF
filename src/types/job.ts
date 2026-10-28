@@ -1,9 +1,9 @@
 import type { Page } from 'playwright';
 
-export type PdfOptions = NonNullable<Parameters<Page['pdf']>[0]>;
-
+export type PdfOptions = Omit<NonNullable<Parameters<Page['pdf']>[0]>, 'path'>;
 export type JobPayload = {
-    url: string;
-    webhookUrl?: string;
-    options?: PdfOptions;
+  jobId: string;
+  url: string;
+  webhookUrl: string;
+  options?: PdfOptions;
 };

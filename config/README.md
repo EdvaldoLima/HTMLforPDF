@@ -1,22 +1,13 @@
-# Deployment / Docker configuration
+# Deployment configuration
 
-This folder contains Docker-related configuration for local development and simple deployments.
+Dockerfiles are in `docker/api/Dockerfile` and `docker/worker/Dockerfile`.
+The Compose file is `docker-compose.yml` in the project root.
 
-Files:
-- `docker/Dockerfile` — Dockerfile to build the application image (runs `npm start`).
-- `docker-compose.yml` — Compose file (moved to project root) to start the `api` service. RabbitMQ is expected external; set `RABBITMQ_URL` in project `.env`.
-- `docker/.env.example` — Example environment variables for Docker.
+1. Copy `.env.example` to `.env`.
+2. Configure `API_KEY`, the external `RABBITMQ_URL`, and matching queue settings.
+3. Run `docker compose up --build` from the project root.
 
-Quick start:
-
-1. Copy Docker env example:
-
-```bash
-cp docker/.env.example .env
-```
-
-2. Build and start with compose:
-
-```bash
-docker compose -f docker/docker-compose.yml up --build
-```
+See the root README for security boundaries, queue migration, webhook signing,
+health endpoints and operational limits. `docker/chromium-seccomp.json` is the
+Playwright seccomp profile adapted from
+https://github.com/microsoft/playwright/blob/main/utils/docker/seccomp_profile.json.

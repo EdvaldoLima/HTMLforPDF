@@ -1,19 +1,31 @@
 import amqp from 'amqplib';
+import { config } from '../config/env.js';
+import logger from '../utils/logger.js';
 
-const RABBIT_URL = process.env.RABBITMQ_URL || 'amqp://localhost';
-
-let connection: amqp.Connection | null = null;
-
-export async function getConnection(): Promise<amqp.Connection> {
-  if (connection) return connection;
-  connection = await amqp.connect(RABBIT_URL);
-  return connection;
+let pending: Promise<amqp.ChannelModel> | undefined;
+export function getConnection(): Promise<amqp.ChannelModel> {
+  if (!pending) {
+    const attempt = amqp.connect(config.rabbitUrl, { timeout: 10_000 }).then((connection) => {
+      connection.on('error', () => logger.error('RabbitMQ connection error'));
+      connection.once('close', () => {
+        if (pending === attempt) pending = undefined;
+      });
+      return connection;
+    });
+    pending = attempt;
+    void attempt.catch(() => {
+      if (pending === attempt) pending = undefined;
+    });
+  }
+  return pending;
 }
-
 export async function createChannel() {
-  const conn = await getConnection();
-  const ch = await conn.createChannel();
-  return ch;
+  const channel = await (await getConnection()).createConfirmChannel();
+  channel.on('error', () => logger.error('RabbitMQ channel error'));
+  return channel;
 }
-
-export default { getConnection, createChannel };
+export async function closeConnection() {
+  const connection = pending;
+  pending = undefined;
+  if (connection) await (await connection).close();
+}

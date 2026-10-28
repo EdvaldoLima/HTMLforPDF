@@ -4,3 +4,11 @@ dist
 .gitignore
 npm-debug.log
 .vscode
+
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+coverage
+tests

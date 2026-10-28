@@ -11,6 +11,14 @@ module.exports = {
     project: ['./tsconfig.json'],
   },
   plugins: ['@typescript-eslint'],
+  overrides: [
+    {
+      files: ['tests/**/*.ts'],
+      parserOptions: {
+        project: ['./tests/tsconfig.json'],
+      },
+    },
+  ],
   extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended'],
   rules: {
     'no-console': 'off',
