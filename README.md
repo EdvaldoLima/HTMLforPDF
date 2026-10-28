@@ -245,8 +245,11 @@ filesystem and temporary writable storage.
 Docker builds do not receive RabbitMQ credentials or copy `.env` files. Supply
 credentials at runtime, preferably using your deployment secret manager. Both
 images compile TypeScript in a build stage and install production dependencies
-with `npm ci`. RabbitMQ remains an external dependency; use restricted broker
-credentials and `amqps://` where the broker is reached across a network.
+with `npm ci`. RabbitMQ can be bundled with Docker using `COMPOSE_PROFILES=rabbitmq`,
+or supplied externally with `COMPOSE_PROFILES=` and `RABBITMQ_URL` pointing to the
+existing broker. See [Docker configuration](config/README.md) for both modes,
+credentials, ports and persistent storage. Use restricted broker credentials and
+`amqps://` where the broker is reached across a network.
 
 ### Queue migration and delivery
 
@@ -304,4 +307,5 @@ Validate with `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`,
 and `npm audit`. Tests cover network destination policy, proxy blocking, browser
 cleanup/timeouts/concurrency, queue acknowledgements/retries, API authentication,
 validation, and webhook signing. For Docker, run `docker compose up --build` after
-configuring `.env` and the external broker.
+configuring `.env` and selecting the bundled or external broker as described in
+[Docker configuration](config/README.md).
